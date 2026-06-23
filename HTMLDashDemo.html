@@ -1,0 +1,2820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build Dashboards with AI — Global Fruit Market Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+<style>
+/* SECTION: CSS Custom Properties / Tokens */
+/* Contrast audit performed against WCAG 2.1 AA (4.5:1 normal text, 3:1 large text).
+   All values below pass AA or better on their intended backgrounds.            */
+:root {
+  --bg: #F7F6F2;
+  --surface: #FFFFFF;
+  --surface-2: #F0EEE8;
+  --border: #E2DFD7;
+  --border-hover: #C8C4BA;
+  --text-primary: #1A1917;     /* 16.25:1 on bg — AAA */
+  --text-secondary: #6B6A64;   /*  5.02:1 on bg — AA  */
+  --text-muted: #706F69;       /*  4.66:1 on bg — AA  (was #9B9A94 @ 2.61 — FAIL) */
+  --accent: #5950C2;           /*  6.27:1 on white    (was #7F77DD @ 3.76 — FAIL) */
+  --accent-light: #EEEDFE;
+  --accent-dark: #534AB7;      /*  6.00:1 on accent-light — AA */
+  --success: #167358;          /*  5.79:1 on white, 5.10 on success-light — AA (was #1D9E75 @ 3.39 — FAIL) */
+  --success-light: #E1F5EE;
+  --warn: #8C5C14;             /*  5.74:1 on white, 5.01 on warn-light — AA (was #BA7517 @ 3.72 — FAIL) */
+  --warn-light: #FAEEDA;
+  --danger: #A32D2D;           /*  7.07:1 on white — AAA */
+  --danger-light: #FCEBEB;
+  --gold: #8E681C;             /*  5.06:1 on white, 4.59 on gold-light — AA (was #D4A843 @ 2.21 — FAIL) */
+  --gold-light: #FDF3DC;
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.09);
+  --sidebar-width: 260px;
+  --header-height: 72px;
+  --transition: 200ms ease;
+}
+
+[data-theme="dark"] {
+  --bg: #141412;
+  --surface: #1E1D1A;
+  --surface-2: #252420;
+  --border: #2E2D28;
+  --border-hover: #3D3C36;
+  --text-primary: #F0EEE8;     /* 15.90:1 on bg — AAA */
+  --text-secondary: #9B9A94;   /*  6.54:1 on bg — AA  */
+  --text-muted: #8E8D87;       /*  5.54:1 on bg, 4.67 on surface-2 — AA (was #6B6A64 @ 2.86 — FAIL) */
+  --accent: #9D96E8;           /*  6.99:1 on bg — AA  */
+  --accent-light: #26215C;
+  --accent-dark: #AFA9EC;      /*  6.68:1 on accent-light — AA */
+  --success: #22B884;          /*  5.39:1 on success-light, 6.63 on surface — AA (was #1D9E75 @ 4.04 — FAIL) */
+  --success-light: #04342C;
+  --warn: #EF9F27;             /*  7.75:1 on surface — AAA */
+  --warn-light: #412402;
+  --danger: #F07070;           /*  5.82:1 on surface, 5.03 on danger-light — AA (was #E24B4A @ 4.29/3.70) */
+  --danger-light: #501313;
+  --gold: #EFB84B;             /*  9.33:1 on surface — AAA */
+  --gold-light: #2C2008;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* SECTION: Reset & Base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* SECTION: Layout Grid */
+.app-layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: var(--header-height) 1fr;
+  grid-template-areas:
+    "sidebar header"
+    "sidebar main";
+  min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "header"
+      "sidebar"
+      "main";
+  }
+  .sidebar { position: static; width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar-nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px; }
+  .nav-item { padding: 6px 12px; }
+  .sidebar-section-label { display: none; }
+}
+
+/* SECTION: Sidebar */
+.sidebar {
+  grid-area: sidebar;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 20;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.sidebar-logo {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.logo-mark svg { width: 18px; height: 18px; fill: white; }
+
+.logo-text { font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+.logo-sub { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+
+.sidebar-section-label {
+  padding: 16px 20px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sidebar-nav { padding: 4px 10px; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+}
+
+.nav-item:hover { background: var(--surface-2); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-light); color: var(--accent-dark); font-weight: 500; }
+.nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.nav-icon { font-size: 15px; flex-shrink: 0; }
+
+.sidebar-filters {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: border-color var(--transition);
+}
+
+.filter-select:focus { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
+
+.range-group { margin-bottom: 10px; }
+.range-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.range-vals { font-size: 12px; color: var(--text-muted); }
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* SECTION: Header */
+.header {
+  grid-area: header;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.header-left { display: flex; flex-direction: column; gap: 1px; }
+
+.header-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.header-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: background var(--transition), border-color var(--transition);
+  color: var(--text-secondary);
+}
+
+.theme-toggle:hover { background: var(--surface-2); border-color: var(--border-hover); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.time-toggle-group {
+  display: flex;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 2px;
+}
+
+.time-btn {
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+
+.time-btn:hover { color: var(--text-primary); }
+.time-btn.active { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-sm); }
+.time-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* SECTION: Main Content */
+.main {
+  grid-area: main;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+/* SECTION: Teaching Banner */
+.teaching-banner {
+  background: var(--accent-light);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.banner-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.banner-body { flex: 1; }
+
+.banner-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--accent-dark);
+  margin-bottom: 3px;
+}
+
+.banner-text { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+/* SECTION: Section Headers */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  margin-top: 28px;
+}
+
+.section-header:first-of-type { margin-top: 0; }
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--text-primary);
+}
+
+.prompt-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  transition: background var(--transition);
+}
+
+.prompt-pill:hover { background: var(--accent); color: white; }
+.prompt-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* SECTION: KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), border-color var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.kpi-card.purple::before { background: var(--accent); }
+.kpi-card.green::before { background: var(--success); }
+.kpi-card.gold::before { background: var(--gold); }
+.kpi-card.danger::before { background: var(--danger); }
+
+.kpi-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-hover); }
+
+.kpi-label { font-size: 11.5px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.03em; }
+
+.kpi-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.kpi-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.kpi-change.up { color: var(--success); }
+.kpi-change.down { color: var(--danger); }
+.kpi-change.neutral { color: var(--text-muted); }
+.kpi-sub { font-size: 11.5px; color: var(--text-muted); }
+
+/* SECTION: Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+/* SECTION: Grid Layouts */
+.grid-full { width: 100%; margin-bottom: 16px; }
+.grid-half { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-thirds { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+@media (max-width: 900px) {
+  .grid-half, .grid-thirds { grid-template-columns: 1fr; }
+}
+
+/* SECTION: Prompt Showcase */
+.prompt-showcase {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.prompt-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  background: var(--accent-light);
+  padding: 3px 8px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.prompt-text {
+  font-family: 'Courier New', monospace;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.prompt-text .highlight { color: var(--accent); font-weight: 600; }
+
+/* SECTION: Data Table */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  width: 220px;
+  transition: border-color var(--transition);
+}
+
+.search-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.search-input::placeholder { color: var(--text-muted); }
+
+.table-wrap { overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--border); }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead { background: var(--surface-2); }
+
+th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color var(--transition);
+}
+
+th:hover { color: var(--text-primary); }
+th.sorted { color: var(--accent); }
+
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+tr:last-child td { border-bottom: none; }
+tr:nth-child(even) { background: var(--surface-2); }
+tr.highlighted { background: var(--accent-light) !important; }
+tr:hover td { background: var(--accent-light); }
+
+.sort-icon { font-size: 10px; margin-left: 4px; opacity: 0.6; }
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.tag-purple { background: var(--accent-light); color: var(--accent-dark); }
+.tag-green { background: var(--success-light); color: var(--success); }
+.tag-gold { background: var(--gold-light); color: var(--gold); }
+.tag-danger { background: var(--danger-light); color: var(--danger); }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pag-btns { display: flex; gap: 6px; }
+
+.pag-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.pag-btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-hover); color: var(--text-primary); }
+.pag-btn:disabled { opacity: 0.4; cursor: default; }
+.pag-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* SECTION: Activity Feed */
+.feed-list { display: flex; flex-direction: column; gap: 0; max-height: 340px; overflow-y: auto; }
+
+.feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.feed-item:last-child { border-bottom: none; }
+
+.feed-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.feed-dot.info { background: var(--accent); }
+.feed-dot.success { background: var(--success); }
+.feed-dot.warning { background: var(--warn); }
+.feed-dot.critical { background: var(--danger); }
+
+.feed-body { flex: 1; min-width: 0; }
+.feed-msg { font-size: 13px; color: var(--text-primary); line-height: 1.4; }
+.feed-time { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+.feed-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.feed-badge.info { background: var(--accent-light); color: var(--accent-dark); }
+.feed-badge.success { background: var(--success-light); color: var(--success); }
+.feed-badge.warning { background: var(--warn-light); color: var(--warn); }
+.feed-badge.critical { background: var(--danger-light); color: var(--danger); }
+
+/* SECTION: AI Prompt Lab */
+.prompt-lab {
+  background: linear-gradient(135deg, var(--accent-light) 0%, var(--surface) 60%);
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+
+.prompt-lab-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--accent-dark);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-lab-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6; }
+
+.step-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+@media (max-width: 900px) { .step-cards { grid-template-columns: 1fr; } }
+
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  transition: box-shadow var(--transition);
+}
+
+.step-card:hover { box-shadow: var(--shadow-md); }
+
+.step-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.step-card-title { font-weight: 600; font-size: 13px; color: var(--text-primary); margin-bottom: 6px; }
+.step-card-body { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+.try-prompt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 13px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), transform 50ms;
+}
+
+.try-prompt-btn:hover { background: var(--accent-dark); }
+.try-prompt-btn:active { transform: scale(0.97); }
+.try-prompt-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* SECTION: Prompt Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  padding: 28px 30px;
+  max-width: 580px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.modal-title { font-family: var(--font-display); font-size: 20px; color: var(--text-primary); }
+.modal-close {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+.modal-close:hover { background: var(--danger-light); color: var(--danger); }
+.modal-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.modal-body { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+.prompt-block {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 14px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition);
+  margin-top: 6px;
+}
+
+.copy-btn:hover { background: var(--accent-dark); }
+
+/* SECTION: Chart containers */
+.chart-container { position: relative; width: 100%; }
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.no-results {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* SECTION: Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* SECTION: Chart axis color fix for dark mode */
+.chart-wrap canvas { display: block; }
+
+/* SECTION: Tab system */
+.tab-switcher {
+  display: flex;
+  gap: 2px;
+  padding: 10px 10px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 8px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+  white-space: nowrap;
+}
+
+.tab-btn:hover { color: var(--text-primary); background: var(--surface-2); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: none; }
+.tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* SECTION: Starter tab content */
+.starter-hero {
+  text-align: center;
+  padding: 44px 24px 36px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 36px;
+}
+
+.starter-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.starter-headline {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.starter-sub {
+  font-size: 15px;
+  color: var(--text-secondary);
+  max-width: 480px;
+  margin: 0 auto 24px;
+  line-height: 1.7;
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 24px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), transform 60ms;
+}
+
+.hero-cta:hover { background: var(--accent-dark); }
+.hero-cta:active { transform: scale(0.98); }
+.hero-cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.starter-section {
+  margin-bottom: 40px;
+}
+
+.starter-section-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.starter-section-sub {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+/* Journey timeline */
+.journey {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.journey-item {
+  display: flex;
+  gap: 18px;
+  padding-bottom: 28px;
+  position: relative;
+}
+
+.journey-item:last-child { padding-bottom: 0; }
+
+.journey-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 36px;
+}
+
+.journey-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  border: 2px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.journey-line {
+  flex: 1;
+  width: 2px;
+  background: var(--border);
+  margin-top: 4px;
+}
+
+.journey-item:last-child .journey-line { display: none; }
+
+.journey-body {
+  flex: 1;
+  padding-top: 4px;
+  padding-bottom: 8px;
+}
+
+.journey-title {
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.journey-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin-bottom: 10px;
+}
+
+.journey-tip {
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.journey-tip strong { color: var(--text-primary); }
+
+/* Mindset cards */
+.mindset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 700px) { .mindset-grid { grid-template-columns: 1fr; } }
+
+.mindset-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.mindset-icon { font-size: 20px; flex-shrink: 0; line-height: 1.3; }
+
+.mindset-title { font-weight: 600; font-size: 13.5px; color: var(--text-primary); margin-bottom: 4px; }
+.mindset-body { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
+
+/* Checklist */
+.checklist { display: flex; flex-direction: column; gap: 10px; }
+
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.check-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--success-light);
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Tools grid */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 700px) { .tools-grid { grid-template-columns: 1fr 1fr; } }
+
+.tool-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  text-align: center;
+}
+
+.tool-icon { font-size: 24px; margin-bottom: 6px; }
+.tool-name { font-weight: 600; font-size: 13px; color: var(--text-primary); margin-bottom: 3px; }
+.tool-role { font-size: 11.5px; color: var(--text-muted); }
+
+/* Demo callout at bottom of starter */
+.demo-callout {
+  background: var(--accent-light);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 24px 26px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.demo-callout-text { flex: 1; }
+.demo-callout-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--accent-dark);
+  margin-bottom: 6px;
+}
+.demo-callout-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+.demo-callout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+
+.demo-callout-btn:hover { background: var(--accent-dark); }
+.demo-callout-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Hide sidebar filters on starter tab */
+.filters-hidden { display: none; }
+
+/* Divider */
+.starter-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 36px 0;
+}
+</style>
+</head>
+
+<body>
+
+<!-- SECTION: App Shell -->
+<div class="app-layout" id="appLayout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" aria-label="Navigation and filters">
+    <div class="sidebar-logo">
+      <div class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">AI Dashboard Builder</div>
+        <div class="logo-sub">Learn by doing</div>
+      </div>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="tab-switcher" role="tablist" aria-label="Main sections">
+      <button class="tab-btn active" id="tab-start" role="tab" aria-selected="true"
+        onclick="switchTab('start')" tabindex="0">🗺️ Get started</button>
+      <button class="tab-btn" id="tab-demo" role="tab" aria-selected="false"
+        onclick="switchTab('demo')" tabindex="0">🎬 Live demo</button>
+    </div>
+
+    <!-- Starter tab nav -->
+    <nav class="sidebar-nav" id="starterNav" aria-label="Getting started sections">
+      <button class="nav-item active" onclick="scrollToInTab('why-section')" tabindex="0">
+        <span class="nav-icon">💡</span> Why AI + dashboards
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('journey-section')" tabindex="0">
+        <span class="nav-icon">🗺️</span> The journey
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('mindset-section')" tabindex="0">
+        <span class="nav-icon">🧠</span> Mindset shifts
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('ready-section')" tabindex="0">
+        <span class="nav-icon">✅</span> Are you ready?
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('tools-section')" tabindex="0">
+        <span class="nav-icon">🛠️</span> Tools overview
+      </button>
+    </nav>
+
+    <!-- Demo tab nav -->
+    <nav class="sidebar-nav" id="demoNav" style="display:none;" aria-label="Demo sections">
+      <button class="nav-item" onclick="scrollToInTab('kpi-section')" tabindex="0">
+        <span class="nav-icon">📊</span> Market KPIs
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('trends-section')" tabindex="0">
+        <span class="nav-icon">📈</span> Sales Trends
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('regional-section')" tabindex="0">
+        <span class="nav-icon">🌍</span> NA vs Europe
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('seasonal-section')" tabindex="0">
+        <span class="nav-icon">🍓</span> Seasonal Patterns
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('sentiment-section')" tabindex="0">
+        <span class="nav-icon">💚</span> Health & Sentiment
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('table-section')" tabindex="0">
+        <span class="nav-icon">📋</span> Data Table
+      </button>
+      <button class="nav-item" onclick="scrollToInTab('lab-section')" tabindex="0">
+        <span class="nav-icon">🤖</span> AI Prompt Lab
+      </button>
+    </nav>
+
+    <div class="sidebar-section-label" id="filtersLabel" style="display:none;">Filters</div>
+    <div class="sidebar-filters" id="sidebarFilters" style="display:none;">
+      <div class="filter-label">Sort table by</div>
+      <select class="filter-select" id="genreFilter" aria-label="Sort data table" onchange="applyFilters()">
+        <option value="annual_sales_usd_millions">Sales ($M)</option>
+        <option value="growth_rate_pct">Growth rate</option>
+        <option value="popularity_score">Popularity</option>
+        <option value="health_perception_score">Health score</option>
+        <option value="avg_price_per_kg_usd">Price per kg</option>
+      </select>
+
+      <div class="filter-label">Trending only</div>
+      <select class="filter-select" id="eraFilter" aria-label="Filter trending fruits" onchange="applyFilters()">
+        <option value="all">Show all fruits</option>
+        <option value="trending">Trending only ★</option>
+      </select>
+
+      <div class="range-group">
+        <div class="range-row">
+          <div class="filter-label">Min market share</div>
+          <span class="range-vals" id="revenueRangeVal">0%</span>
+        </div>
+        <input type="range" id="revenueRange" min="0" max="20" step="1" value="0"
+          aria-label="Minimum market share filter"
+          oninput="document.getElementById('revenueRangeVal').textContent=this.value+'%'; applyFilters()">
+      </div>
+    </div>
+  </aside>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="header-title" id="headerTitle">Building Dashboards with AI</div>
+      <div class="header-meta" id="headerMeta">Start here — your guide to AI-powered data storytelling</div>
+    </div>
+    <div class="header-right">
+      <div class="time-toggle-group" id="timeToggleGroup" role="group" aria-label="Time range" style="display:none;">
+        <button class="time-btn active" data-range="90" onclick="setTimeRange(this)" tabindex="0">90D</button>
+        <button class="time-btn" data-range="180" onclick="setTimeRange(this)" tabindex="0">180D</button>
+        <button class="time-btn" data-range="365" onclick="setTimeRange(this)" tabindex="0">1Y</button>
+        <button class="time-btn" data-range="all" onclick="setTimeRange(this)" tabindex="0">All</button>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark/light mode" tabindex="0">
+        <span id="themeIcon">🌙</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main" id="mainContent">
+
+    <!-- STARTER TAB PANEL -->
+    <div id="panel-start" class="tab-panel active" role="tabpanel" aria-labelledby="tab-start">
+
+      <!-- Hero -->
+      <div class="starter-hero">
+        <div class="starter-eyebrow">A new way to work with data</div>
+        <h1 class="starter-headline">Build dashboards that tell stories — with AI as your co-pilot</h1>
+        <p class="starter-sub">
+          You don't need to be a developer or a data scientist. You need a clear question,
+          a dataset, and the ability to describe what you want in plain English.
+          This guide shows you the full journey — from blank page to polished, interactive dashboard.
+        </p>
+        <button class="hero-cta" onclick="switchTab('demo')" aria-label="Jump to the live fruit market demo">
+          See the live demo →
+        </button>
+      </div>
+
+      <!-- Why section -->
+      <div class="starter-section" id="why-section" style="scroll-margin-top: 90px;">
+        <h2 class="starter-section-title">Why AI changes everything for dashboards</h2>
+        <p class="starter-section-sub">
+          Building a dashboard used to require a developer, a BI tool license, and weeks of back-and-forth.
+          AI collapses that into a conversation. Here's what's actually different now:
+        </p>
+
+        <div class="mindset-grid">
+          <div class="mindset-card">
+            <div class="mindset-icon">⚡</div>
+            <div>
+              <div class="mindset-title">Speed: hours, not weeks</div>
+              <div class="mindset-body">A prototype that would take a developer two days now takes two hours of prompting. You can validate ideas before committing resources.</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">🗣️</div>
+            <div>
+              <div class="mindset-title">Plain English is enough</div>
+              <div class="mindset-body">You don't write code — you describe what you want. "Add a donut chart showing revenue by region, clicking it should filter the table" is a complete instruction.</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">🔄</div>
+            <div>
+              <div class="mindset-title">Iteration is free</div>
+              <div class="mindset-body">Change your mind about a chart type? Swap dark mode in? Add a new filter? Each is a single sentence. There's no cost to exploring.</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">📖</div>
+            <div>
+              <div class="mindset-title">You stay in control of the story</div>
+              <div class="mindset-body">AI handles the code. You own the narrative — what to highlight, what anomalies to call out, what decision your dashboard is meant to support.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="starter-divider">
+
+      <!-- Journey section -->
+      <div class="starter-section" id="journey-section" style="scroll-margin-top: 90px;">
+        <h2 class="starter-section-title">The journey — what it actually looks like</h2>
+        <p class="starter-section-sub">
+          Most people expect a straight line from "I have data" to "I have a dashboard." The real journey
+          looks more like a spiral — you get something working, then you see what's missing, then you improve it.
+          Here's the map:
+        </p>
+
+        <div class="journey">
+
+          <div class="journey-item">
+            <div class="journey-left">
+              <div class="journey-circle">💬</div>
+              <div class="journey-line"></div>
+            </div>
+            <div class="journey-body">
+              <div class="journey-title">Step 1 — Define your story before touching data</div>
+              <div class="journey-desc">
+                Start with a blank document, not a spreadsheet. Write down: who reads this dashboard, what decision it supports, and the single most important thing you want them to walk away knowing. This becomes the brief you give to the AI.
+              </div>
+              <div class="journey-tip">
+                <strong>Example brief:</strong> "Our sales team needs to see which product lines are underperforming by region this quarter, so they can prioritize outreach. The most important number is margin, not revenue."
+              </div>
+            </div>
+          </div>
+
+          <div class="journey-item">
+            <div class="journey-left">
+              <div class="journey-circle">📂</div>
+              <div class="journey-line"></div>
+            </div>
+            <div class="journey-body">
+              <div class="journey-title">Step 2 — Describe your data (or ask for synthetic data first)</div>
+              <div class="journey-desc">
+                Paste a sample of your data into Claude — even just 5–10 rows of a CSV — and describe what each column means. If you don't have real data yet, ask for synthetic data that matches your schema. Prototyping with fake data is faster and lets you validate the design before the real data is ready.
+              </div>
+              <div class="journey-tip">
+                <strong>Try this:</strong> "Here are 5 rows of my sales CSV. Generate 90 rows of realistic synthetic data following this schema. Include 2–3 anomalies — a spike, a dip, and a missing value — to make it look real."
+              </div>
+            </div>
+          </div>
+
+          <div class="journey-item">
+            <div class="journey-left">
+              <div class="journey-circle">🏗️</div>
+              <div class="journey-line"></div>
+            </div>
+            <div class="journey-body">
+              <div class="journey-title">Step 3 — Build the first version fast (expect it to be ugly)</div>
+              <div class="journey-desc">
+                Ask for the full layout in one prompt: header, KPI cards, one chart, one table. Don't try to get it perfect — get it working. You'll see things you didn't know you wanted once it's in front of you. The first version is a conversation starter, not a deliverable.
+              </div>
+              <div class="journey-tip">
+                <strong>What to ask for:</strong> KPI row → primary chart → data table. In that order. Don't add filters, dark mode, or interactivity until the core is solid.
+              </div>
+            </div>
+          </div>
+
+          <div class="journey-item">
+            <div class="journey-left">
+              <div class="journey-circle">🔁</div>
+              <div class="journey-line"></div>
+            </div>
+            <div class="journey-body">
+              <div class="journey-title">Step 4 — Iterate one feature at a time</div>
+              <div class="journey-desc">
+                This is where most people go wrong: they ask for ten things at once and get a tangled mess. Instead, add one feature per prompt. "Now add a genre filter that updates all charts." Then: "Now make the table sortable." Each change is a sentence. Say "confirm before continuing" to stay in control.
+              </div>
+              <div class="journey-tip">
+                <strong>Golden rule:</strong> One ask per prompt. If you find yourself writing a numbered list of 6 things to add, split it into 6 separate messages.
+              </div>
+            </div>
+          </div>
+
+          <div class="journey-item">
+            <div class="journey-left">
+              <div class="journey-circle">✨</div>
+              <div class="journey-line"></div>
+            </div>
+            <div class="journey-body">
+              <div class="journey-title">Step 5 — Polish the story, not just the visuals</div>
+              <div class="journey-desc">
+                Once the mechanics work, go back to your brief. Are the right things prominent? Is the most important number the biggest thing on the page? Add annotations to your anomalies. Write a one-line "so what" beneath each chart. A dashboard without context is just a grid of numbers.
+              </div>
+              <div class="journey-tip">
+                <strong>Ask the AI:</strong> "Look at this dashboard and suggest 3 things that would make the story clearer to a non-technical executive." You'll get ideas you hadn't considered.
+              </div>
+            </div>
+          </div>
+
+          <div class="journey-item">
+            <div class="journey-left">
+              <div class="journey-circle">🚀</div>
+            </div>
+            <div class="journey-body">
+              <div class="journey-title">Step 6 — Ship it, then listen</div>
+              <div class="journey-desc">
+                Share the dashboard with your audience. The questions they ask — "can you break this down by X?", "what happened in March?" — are your next iteration list. Dashboards are living documents. With AI, adding a new filter based on feedback takes minutes, not a Jira ticket.
+              </div>
+              <div class="journey-tip">
+                <strong>Keep a prompt log:</strong> Save the prompts that built each section. When you need to rebuild or hand off to someone else, you have the recipe.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <hr class="starter-divider">
+
+      <!-- Mindset section -->
+      <div class="starter-section" id="mindset-section" style="scroll-margin-top: 90px;">
+        <h2 class="starter-section-title">Mindset shifts that make you better at this</h2>
+        <p class="starter-section-sub">
+          Working with AI is a skill. These are the shifts that separate people who get great results from those who get mediocre ones.
+        </p>
+
+        <div class="mindset-grid">
+          <div class="mindset-card">
+            <div class="mindset-icon">🎯</div>
+            <div>
+              <div class="mindset-title">Be specific about outcomes, not steps</div>
+              <div class="mindset-body">"Make it look better" gets you nothing. "Make the KPI cards larger and move the chart title to the left" gets you exactly what you want. Describe the outcome you can see, not the process to get there.</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">🧪</div>
+            <div>
+              <div class="mindset-title">Treat every output as a draft</div>
+              <div class="mindset-body">The AI's first attempt is a starting point, not a final answer. Read it critically. What's missing? What's wrong? What surprised you? Your reaction to the draft is the next prompt.</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">📐</div>
+            <div>
+              <div class="mindset-title">Constraints produce creativity</div>
+              <div class="mindset-body">Tell the AI what you don't want as well as what you do. "No pie charts" or "keep the color palette to two colors only" prevents the AI from defaulting to safe, generic choices.</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">🤝</div>
+            <div>
+              <div class="mindset-title">You're the domain expert</div>
+              <div class="mindset-body">The AI knows how to build things. You know what matters in your field. The best dashboards come from you bringing the "what matters" and the AI bringing the "how to show it."</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">🔍</div>
+            <div>
+              <div class="mindset-title">Anomalies are features, not bugs</div>
+              <div class="mindset-body">When your data has a weird spike or a suspicious gap, don't smooth it over — label it. The outlier is usually the most interesting thing in the dataset and the most memorable part of your presentation.</div>
+            </div>
+          </div>
+          <div class="mindset-card">
+            <div class="mindset-icon">📝</div>
+            <div>
+              <div class="mindset-title">The title is the insight</div>
+              <div class="mindset-body">Change chart titles from descriptive ("Revenue by Quarter") to declarative ("Q3 revenue fell 18% — supply chain delays"). Your audience reads the title first. Make it do real work.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="starter-divider">
+
+      <!-- Readiness checklist -->
+      <div class="starter-section" id="ready-section" style="scroll-margin-top: 90px;">
+        <h2 class="starter-section-title">Are you ready to start? Checklist</h2>
+        <p class="starter-section-sub">You don't need all of these, but the more boxes you can tick, the smoother your first build will go.</p>
+
+        <div class="card" style="padding: 20px 24px;">
+          <div class="checklist">
+            <div class="check-item">
+              <div class="check-dot">✓</div>
+              <div><strong style="color: var(--text-primary);">A clear question your dashboard will answer.</strong> If you can write it in one sentence, you're ready. If you need a paragraph, narrow it down first.</div>
+            </div>
+            <div class="check-item">
+              <div class="check-dot">✓</div>
+              <div><strong style="color: var(--text-primary);">Some data — even messy data.</strong> A CSV, a spreadsheet, a database export, even a table copy-pasted from a website. If you have nothing, ask AI to generate synthetic data for your domain.</div>
+            </div>
+            <div class="check-item">
+              <div class="check-dot">✓</div>
+              <div><strong style="color: var(--text-primary);">Access to an AI tool.</strong> Claude, ChatGPT, Gemini — any of the major models work. Claude tends to be strongest for long, structured code like dashboards.</div>
+            </div>
+            <div class="check-item">
+              <div class="check-dot">✓</div>
+              <div><strong style="color: var(--text-primary);">A browser to open the file.</strong> The output is a single HTML file. No server, no install, no deployment. Open it in Chrome or Firefox and it works.</div>
+            </div>
+            <div class="check-item">
+              <div class="check-dot">✓</div>
+              <div><strong style="color: var(--text-primary);">Patience for 2–3 iterations.</strong> The first version will have something wrong. That's normal. It's also fast to fix. Expect to go back and forth 3–5 times before it feels right.</div>
+            </div>
+            <div class="check-item">
+              <div class="check-dot" style="background: var(--accent-light); color: var(--accent);">→</div>
+              <div><strong style="color: var(--text-primary);">Optional but helpful: a visual reference.</strong> Screenshot a dashboard you like — from Tableau Public, a SaaS product, anywhere. Share it with the AI and say "roughly this style, but for my data."</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="starter-divider">
+
+      <!-- Tools overview -->
+      <div class="starter-section" id="tools-section" style="scroll-margin-top: 90px;">
+        <h2 class="starter-section-title">Tools that work well together</h2>
+        <p class="starter-section-sub">You don't need all of these — but this is a stack that covers the full journey from data to a shareable dashboard.</p>
+
+        <div class="tools-grid">
+          <div class="tool-card">
+            <div class="tool-icon">🤖</div>
+            <div class="tool-name">Claude</div>
+            <div class="tool-role">Write the code & explain every choice</div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-icon">📊</div>
+            <div class="tool-name">Chart.js</div>
+            <div class="tool-role">Charts via a single CDN script tag</div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-icon">📋</div>
+            <div class="tool-name">Google Sheets</div>
+            <div class="tool-role">Clean and explore your data first</div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-icon">🌐</div>
+            <div class="tool-name">Chrome / Firefox</div>
+            <div class="tool-role">Open the HTML file — no server needed</div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-icon">📁</div>
+            <div class="tool-name">VS Code</div>
+            <div class="tool-role">Optional: edit the file with syntax highlighting</div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-icon">☁️</div>
+            <div class="tool-name">GitHub Pages</div>
+            <div class="tool-role">Free hosting — share a link, not a file</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Demo callout -->
+      <div class="demo-callout">
+        <div class="demo-callout-text">
+          <div class="demo-callout-title">Ready to see it in action?</div>
+          <div class="demo-callout-body">
+            The Live Demo tab shows a complete AI-built dashboard built from a real fruit market dataset — covering sales, popularity, seasonal patterns, and health sentiment across North America and Europe.
+            Every chart and table has a "View prompt" button so you can see exactly what was asked — and copy it for your own project.
+          </div>
+        </div>
+        <button class="demo-callout-btn" onclick="switchTab('demo')" aria-label="Go to the live fruit market demo">
+          Open live demo →
+        </button>
+      </div>
+
+      <div style="height: 40px;"></div>
+    </div>
+
+    <!-- DEMO TAB PANEL -->
+    <div id="panel-demo" class="tab-panel" role="tabpanel" aria-labelledby="tab-demo">
+
+    <!-- Teaching Banner -->
+    <div class="teaching-banner">
+      <div class="banner-icon">🍓</div>
+      <div class="banner-body">
+        <div class="banner-title">Real data, real dashboard — built entirely with AI</div>
+        <div class="banner-text">
+          This dashboard uses a real fruit market dataset covering North America and Europe.
+          Every chart, filter, and table was described in plain English to Claude.
+          Hit <strong style="color: var(--accent-dark)">✦ View prompt</strong> on any section to see exactly what was asked — and copy it for your own project.
+        </div>
+      </div>
+    </div>
+
+    <!-- Region Toggle -->
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+      <span style="font-size:13px; color:var(--text-muted); font-weight:500;">Viewing region:</span>
+      <div class="time-toggle-group" role="group" aria-label="Region filter" style="display:flex;">
+        <button class="time-btn active" data-region="both" onclick="setRegion(this)" tabindex="0">🌎🌍 Both</button>
+        <button class="time-btn" data-region="north_america" onclick="setRegion(this)" tabindex="0">🌎 North America</button>
+        <button class="time-btn" data-region="europe" onclick="setRegion(this)" tabindex="0">🌍 Europe</button>
+      </div>
+    </div>
+
+    <!-- KPI Section -->
+    <div id="kpi-section" style="scroll-margin-top:90px;">
+      <div class="section-header">
+        <div class="section-title">Market overview — 2024</div>
+        <button class="prompt-pill" onclick="openModal('kpiPrompt')" aria-label="View AI prompt for KPI cards">✦ View prompt</button>
+      </div>
+      <div class="kpi-grid" id="kpiGrid" aria-label="Key market metrics"></div>
+    </div>
+
+    <!-- Sales Trends Section -->
+    <div id="trends-section" style="scroll-margin-top:90px; margin-top:32px;">
+      <div class="section-header">
+        <div class="section-title">Sales trends 2019–2024</div>
+        <button class="prompt-pill" onclick="openModal('trendsPrompt')" aria-label="View AI prompt for sales trends chart">✦ View prompt</button>
+      </div>
+      <div class="prompt-showcase">
+        <div class="prompt-badge">AI prompt snippet</div>
+        <div class="prompt-text">"Create a <span class="highlight">multi-line chart</span> showing annual sales trends for the top 5 fruits
+from 2019 to 2024, separately for each region. Include a <span class="highlight">region toggle</span> and
+make declining fruits visually distinct with a dashed line."</div>
+      </div>
+      <div class="grid-full card">
+        <div class="chart-legend" id="trendsLegend"></div>
+        <div class="chart-container" style="height:300px;">
+          <canvas id="trendsChart" role="img" aria-label="Line chart of fruit sales trends 2019–2024">Fruit sales trends 2019–2024.</canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Regional Comparison Section -->
+    <div id="regional-section" style="scroll-margin-top:90px; margin-top:32px;">
+      <div class="section-header">
+        <div class="section-title">North America vs Europe — head to head</div>
+        <button class="prompt-pill" onclick="openModal('regionalPrompt')" aria-label="View AI prompt for regional comparison">✦ View prompt</button>
+      </div>
+      <div class="grid-half">
+        <!-- Grouped bar: popularity scores -->
+        <div class="card">
+          <div class="card-title">Popularity scores by region</div>
+          <div class="chart-container" style="height:260px;">
+            <canvas id="popularityChart" role="img" aria-label="Grouped bar chart comparing fruit popularity scores between North America and Europe">Popularity comparison.</canvas>
+          </div>
+        </div>
+        <!-- Scatter: price vs growth -->
+        <div class="card">
+          <div class="card-title">Price per kg vs. growth rate</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">Bubble size = market share. Click a bubble to highlight in the table.</div>
+          <div class="chart-container" style="height:240px;">
+            <canvas id="scatterChart" role="img" aria-label="Scatter chart of price per kg versus growth rate, bubble size equals market share">Price vs. growth rate.</canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Market share donut pair -->
+      <div class="grid-half" style="margin-top:0;">
+        <div class="card">
+          <div class="card-title">Market share — North America</div>
+          <div class="chart-legend" id="donutNALegend"></div>
+          <div class="chart-container" style="height:220px;">
+            <canvas id="donutNAChart" role="img" aria-label="Donut chart of North American fruit market share">NA market share breakdown.</canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Market share — Europe</div>
+          <div class="chart-legend" id="donutEULegend"></div>
+          <div class="chart-container" style="height:220px;">
+            <canvas id="donutEUChart" role="img" aria-label="Donut chart of European fruit market share">EU market share breakdown.</canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Seasonal Section -->
+    <div id="seasonal-section" style="scroll-margin-top:90px; margin-top:32px;">
+      <div class="section-header">
+        <div class="section-title">Seasonal demand patterns</div>
+        <button class="prompt-pill" onclick="openModal('seasonalPrompt')" aria-label="View AI prompt for seasonal chart">✦ View prompt</button>
+      </div>
+      <div class="prompt-showcase">
+        <div class="prompt-badge">AI prompt snippet</div>
+        <div class="prompt-text">"Show a <span class="highlight">radar / spider chart</span> of quarterly sales indices by fruit.
+Index 100 = average. Values above 100 = peak season. Annotate any fruit
+exceeding <span class="highlight">index 200</span> — those are the extreme seasonal plays."</div>
+      </div>
+      <div class="grid-thirds">
+        <div class="card">
+          <div class="card-title">Quarterly sales index by fruit</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">Index 100 = average. Higher = peak demand season.</div>
+          <div class="chart-container" style="height:300px;">
+            <canvas id="seasonalChart" role="img" aria-label="Radar chart of seasonal demand index by fruit across quarters">Seasonal demand by fruit.</canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Extreme seasonality leaders</div>
+          <div class="feed-list" id="seasonalFeed" style="max-height:300px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Health & Sentiment Section -->
+    <div id="sentiment-section" style="scroll-margin-top:90px; margin-top:32px;">
+      <div class="section-header">
+        <div class="section-title">Health perception & organic share</div>
+        <button class="prompt-pill" onclick="openModal('sentimentPrompt')" aria-label="View AI prompt for sentiment chart">✦ View prompt</button>
+      </div>
+      <div class="grid-half">
+        <div class="card">
+          <div class="card-title">Health perception score vs. organic share</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">Stars (★) = trending fruits. Organic share on X axis.</div>
+          <div class="chart-container" style="height:260px;">
+            <canvas id="sentimentChart" role="img" aria-label="Scatter chart of health perception score versus organic share percentage, trending fruits marked">Health vs. organic.</canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Per-capita consumption — kg/person/year</div>
+          <div class="chart-container" style="height:280px;">
+            <canvas id="consumptionChart" role="img" aria-label="Horizontal bar chart of per-capita consumption in kilograms per person per year">Per-capita consumption.</canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table Section -->
+    <div id="table-section" style="scroll-margin-top:90px; margin-top:32px;">
+      <div class="section-header">
+        <div class="section-title">Full data table</div>
+        <button class="prompt-pill" onclick="openModal('tablePrompt')" aria-label="View AI prompt for data table">✦ View prompt</button>
+      </div>
+      <div class="card" style="padding:20px;">
+        <div class="table-toolbar">
+          <input type="search" class="search-input" id="tableSearch" placeholder="Search fruits…"
+            aria-label="Search fruits" oninput="renderTable()">
+          <div style="font-size:13px; color:var(--text-muted);" id="tableInfo"></div>
+        </div>
+        <div class="table-wrap">
+          <table aria-label="Fruit market data table">
+            <thead>
+              <tr>
+                <th onclick="sortTable('fruit')" tabindex="0">Fruit <span class="sort-icon" id="sort-fruit"></span></th>
+                <th onclick="sortTable('region')" tabindex="0">Region <span class="sort-icon" id="sort-region"></span></th>
+                <th onclick="sortTable('annual_sales_usd_millions')" tabindex="0">Sales $M <span class="sort-icon" id="sort-annual_sales_usd_millions"></span></th>
+                <th onclick="sortTable('market_share_pct')" tabindex="0">Mkt Share % <span class="sort-icon" id="sort-market_share_pct"></span></th>
+                <th onclick="sortTable('avg_price_per_kg_usd')" tabindex="0">$/kg <span class="sort-icon" id="sort-avg_price_per_kg_usd"></span></th>
+                <th onclick="sortTable('growth_rate_pct')" tabindex="0">Growth % <span class="sort-icon" id="sort-growth_rate_pct"></span></th>
+                <th onclick="sortTable('popularity_score')" tabindex="0">Popularity <span class="sort-icon" id="sort-popularity_score"></span></th>
+                <th onclick="sortTable('health_perception_score')" tabindex="0">Health Score <span class="sort-icon" id="sort-health_perception_score"></span></th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span id="pagInfo">Showing 1–10</span>
+          <div class="pag-btns">
+            <button class="pag-btn" id="prevBtn" onclick="changePage(-1)" aria-label="Previous page">← Prev</button>
+            <button class="pag-btn" id="nextBtn" onclick="changePage(1)" aria-label="Next page">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Prompt Lab -->
+    <div id="lab-section" style="scroll-margin-top:90px; margin-top:32px;">
+      <div class="section-header">
+        <div class="section-title">AI Prompt Lab — build this yourself</div>
+      </div>
+      <div class="prompt-lab">
+        <div class="prompt-lab-title">🤖 The prompts that built this dashboard</div>
+        <div class="prompt-lab-desc">Every component above was built by describing it in plain English. Here's the three-step workflow — follow it with your own data and you'll have a dashboard ready in under an hour.</div>
+        <div class="step-cards">
+          <div class="step-card">
+            <div class="step-num">STEP 01</div>
+            <div class="step-card-title">Define your story</div>
+            <div class="step-card-body">Tell the AI what you're tracking, who reads it, and the decision it needs to support. Clear "so what" = better charts.</div>
+            <button class="try-prompt-btn" onclick="openModal('step1Prompt')" aria-label="See step 1 example prompt">✦ See example prompt</button>
+          </div>
+          <div class="step-card">
+            <div class="step-num">STEP 02</div>
+            <div class="step-card-title">Describe your data</div>
+            <div class="step-card-body">Paste a sample (even 5 rows from a CSV) and describe what each column means. Ask for synthetic data first to prototype fast.</div>
+            <button class="try-prompt-btn" onclick="openModal('step2Prompt')" aria-label="See step 2 example prompt">✦ See example prompt</button>
+          </div>
+          <div class="step-card">
+            <div class="step-num">STEP 03</div>
+            <div class="step-card-title">Iterate & refine</div>
+            <div class="step-card-body">Add features one at a time. Each prompt builds on the last. The AI keeps full context — just say "now add…"</div>
+            <button class="try-prompt-btn" onclick="openModal('step3Prompt')" aria-label="See step 3 example prompt">✦ See example prompt</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:40px;"></div>
+    </div><!-- /panel-demo -->
+
+  </main>
+</div>
+
+<!-- Prompt Modal -->
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
+  onclick="closeModalOnOverlay(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">AI Prompt</div>
+      <button class="modal-close" onclick="closeModal()" aria-label="Close prompt modal">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+/* SECTION: DATA_CONFIG */
+const DATA_CONFIG = {
+  currency: 'USD',
+  revenueUnit: 'millions',
+  updateTimestamp: 'June 2025',
+  regions: ['North America', 'Europe'],
+};
+
+/* SECTION: Fruit Dataset — real data from JSON */
+const FRUIT_DATA = {
+  sales: {
+    north_america: [
+      { fruit:'Banana',    annual_sales_usd_millions:6200, market_share_pct:17.4, avg_price_per_kg_usd:1.20, growth_rate_pct: 2.1 },
+      { fruit:'Apple',     annual_sales_usd_millions:5900, market_share_pct:16.6, avg_price_per_kg_usd:2.80, growth_rate_pct: 1.4 },
+      { fruit:'Strawberry',annual_sales_usd_millions:4100, market_share_pct:11.5, avg_price_per_kg_usd:4.50, growth_rate_pct: 5.3 },
+      { fruit:'Grape',     annual_sales_usd_millions:3800, market_share_pct:10.7, avg_price_per_kg_usd:3.20, growth_rate_pct: 3.0 },
+      { fruit:'Watermelon',annual_sales_usd_millions:2900, market_share_pct: 8.1, avg_price_per_kg_usd:0.90, growth_rate_pct: 1.8 },
+      { fruit:'Orange',    annual_sales_usd_millions:2700, market_share_pct: 7.6, avg_price_per_kg_usd:1.90, growth_rate_pct:-0.5 },
+      { fruit:'Blueberry', annual_sales_usd_millions:2400, market_share_pct: 6.7, avg_price_per_kg_usd:8.10, growth_rate_pct: 9.2 },
+      { fruit:'Peach',     annual_sales_usd_millions:1800, market_share_pct: 5.1, avg_price_per_kg_usd:3.40, growth_rate_pct: 0.7 },
+      { fruit:'Mango',     annual_sales_usd_millions:1600, market_share_pct: 4.5, avg_price_per_kg_usd:3.80, growth_rate_pct: 7.4 },
+      { fruit:'Pineapple', annual_sales_usd_millions:1300, market_share_pct: 3.7, avg_price_per_kg_usd:2.10, growth_rate_pct: 2.6 },
+    ],
+    europe: [
+      { fruit:'Apple',     annual_sales_usd_millions:7800, market_share_pct:21.2, avg_price_per_kg_usd:2.40, growth_rate_pct: 0.9 },
+      { fruit:'Banana',    annual_sales_usd_millions:6100, market_share_pct:16.6, avg_price_per_kg_usd:1.10, growth_rate_pct: 1.7 },
+      { fruit:'Orange',    annual_sales_usd_millions:5200, market_share_pct:14.1, avg_price_per_kg_usd:1.70, growth_rate_pct:-1.2 },
+      { fruit:'Strawberry',annual_sales_usd_millions:3900, market_share_pct:10.6, avg_price_per_kg_usd:5.20, growth_rate_pct: 4.8 },
+      { fruit:'Grape',     annual_sales_usd_millions:3600, market_share_pct: 9.8, avg_price_per_kg_usd:2.90, growth_rate_pct: 2.3 },
+      { fruit:'Pear',      annual_sales_usd_millions:2500, market_share_pct: 6.8, avg_price_per_kg_usd:2.20, growth_rate_pct: 0.4 },
+      { fruit:'Peach',     annual_sales_usd_millions:2100, market_share_pct: 5.7, avg_price_per_kg_usd:3.10, growth_rate_pct: 1.1 },
+      { fruit:'Watermelon',annual_sales_usd_millions:1400, market_share_pct: 3.8, avg_price_per_kg_usd:0.80, growth_rate_pct: 3.5 },
+      { fruit:'Cherry',    annual_sales_usd_millions:1300, market_share_pct: 3.5, avg_price_per_kg_usd:7.60, growth_rate_pct: 5.9 },
+      { fruit:'Kiwi',      annual_sales_usd_millions:1000, market_share_pct: 2.7, avg_price_per_kg_usd:3.50, growth_rate_pct: 4.2 },
+    ],
+  },
+  popularity: {
+    north_america: [
+      { fruit:'Banana',    popularity_score:92, households_buying_pct:84 },
+      { fruit:'Apple',     popularity_score:89, households_buying_pct:81 },
+      { fruit:'Strawberry',popularity_score:83, households_buying_pct:72 },
+      { fruit:'Grape',     popularity_score:78, households_buying_pct:67 },
+      { fruit:'Watermelon',popularity_score:75, households_buying_pct:63 },
+      { fruit:'Orange',    popularity_score:73, households_buying_pct:61 },
+      { fruit:'Blueberry', popularity_score:68, households_buying_pct:55 },
+      { fruit:'Peach',     popularity_score:62, households_buying_pct:49 },
+      { fruit:'Mango',     popularity_score:58, households_buying_pct:44 },
+      { fruit:'Pineapple', popularity_score:55, households_buying_pct:41 },
+    ],
+    europe: [
+      { fruit:'Apple',     popularity_score:94, households_buying_pct:88 },
+      { fruit:'Banana',    popularity_score:88, households_buying_pct:80 },
+      { fruit:'Orange',    popularity_score:85, households_buying_pct:76 },
+      { fruit:'Strawberry',popularity_score:82, households_buying_pct:73 },
+      { fruit:'Grape',     popularity_score:80, households_buying_pct:70 },
+      { fruit:'Pear',      popularity_score:74, households_buying_pct:64 },
+      { fruit:'Peach',     popularity_score:70, households_buying_pct:59 },
+      { fruit:'Watermelon',popularity_score:62, households_buying_pct:51 },
+      { fruit:'Cherry',    popularity_score:60, households_buying_pct:48 },
+      { fruit:'Kiwi',      popularity_score:57, households_buying_pct:45 },
+    ],
+  },
+  consumption: {
+    north_america: [
+      { fruit:'Banana',    kg_per_capita:12.4 },{ fruit:'Apple',     kg_per_capita:10.1 },
+      { fruit:'Strawberry',kg_per_capita: 4.8 },{ fruit:'Grape',     kg_per_capita: 4.5 },
+      { fruit:'Watermelon',kg_per_capita: 6.2 },{ fruit:'Orange',    kg_per_capita: 5.3 },
+      { fruit:'Blueberry', kg_per_capita: 1.9 },{ fruit:'Peach',     kg_per_capita: 2.8 },
+      { fruit:'Mango',     kg_per_capita: 2.1 },{ fruit:'Pineapple', kg_per_capita: 2.6 },
+    ],
+    europe: [
+      { fruit:'Apple',     kg_per_capita:16.8 },{ fruit:'Banana',    kg_per_capita:11.9 },
+      { fruit:'Orange',    kg_per_capita:10.4 },{ fruit:'Strawberry',kg_per_capita: 4.2 },
+      { fruit:'Grape',     kg_per_capita: 6.1 },{ fruit:'Pear',      kg_per_capita: 5.7 },
+      { fruit:'Peach',     kg_per_capita: 3.9 },{ fruit:'Watermelon',kg_per_capita: 3.4 },
+      { fruit:'Cherry',    kg_per_capita: 1.8 },{ fruit:'Kiwi',      kg_per_capita: 2.2 },
+    ],
+  },
+  seasonal: {
+    north_america: [
+      { fruit:'Strawberry',Q1:45, Q2:148,Q3:130,Q4:55  },{ fruit:'Watermelon',Q1:20, Q2:95, Q3:210,Q4:30  },
+      { fruit:'Apple',     Q1:105,Q2:85, Q3:120,Q4:110 },{ fruit:'Blueberry', Q1:40, Q2:160,Q3:180,Q4:45  },
+      { fruit:'Peach',     Q1:30, Q2:80, Q3:220,Q4:35  },{ fruit:'Banana',    Q1:102,Q2:98, Q3:97, Q4:103 },
+      { fruit:'Orange',    Q1:145,Q2:70, Q3:55, Q4:140 },{ fruit:'Grape',     Q1:80, Q2:90, Q3:145,Q4:105 },
+      { fruit:'Mango',     Q1:85, Q2:135,Q3:120,Q4:80  },{ fruit:'Pineapple', Q1:95, Q2:120,Q3:110,Q4:95  },
+    ],
+    europe: [
+      { fruit:'Strawberry',Q1:35, Q2:165,Q3:125,Q4:45  },{ fruit:'Watermelon',Q1:15, Q2:80, Q3:230,Q4:20  },
+      { fruit:'Apple',     Q1:110,Q2:80, Q3:115,Q4:120 },{ fruit:'Cherry',    Q1:20, Q2:200,Q3:160,Q4:25  },
+      { fruit:'Peach',     Q1:20, Q2:75, Q3:240,Q4:30  },{ fruit:'Banana',    Q1:103,Q2:97, Q3:96, Q4:104 },
+      { fruit:'Orange',    Q1:150,Q2:65, Q3:50, Q4:145 },{ fruit:'Grape',     Q1:75, Q2:85, Q3:150,Q4:115 },
+      { fruit:'Pear',      Q1:95, Q2:80, Q3:130,Q4:120 },{ fruit:'Kiwi',      Q1:120,Q2:95, Q3:85, Q4:110 },
+    ],
+  },
+  health: {
+    north_america: [
+      { fruit:'Blueberry', health_perception_score:95, organic_share_pct:38, trending:true  },
+      { fruit:'Strawberry',health_perception_score:88, organic_share_pct:29, trending:true  },
+      { fruit:'Mango',     health_perception_score:84, organic_share_pct:14, trending:true  },
+      { fruit:'Apple',     health_perception_score:82, organic_share_pct:22, trending:false },
+      { fruit:'Grape',     health_perception_score:79, organic_share_pct:17, trending:false },
+      { fruit:'Orange',    health_perception_score:78, organic_share_pct:11, trending:false },
+      { fruit:'Peach',     health_perception_score:74, organic_share_pct:19, trending:false },
+      { fruit:'Banana',    health_perception_score:72, organic_share_pct: 8, trending:false },
+      { fruit:'Pineapple', health_perception_score:71, organic_share_pct:10, trending:false },
+      { fruit:'Watermelon',health_perception_score:68, organic_share_pct: 6, trending:false },
+    ],
+    europe: [
+      { fruit:'Blueberry', health_perception_score:93, organic_share_pct:44, trending:true  },
+      { fruit:'Cherry',    health_perception_score:89, organic_share_pct:31, trending:true  },
+      { fruit:'Kiwi',      health_perception_score:87, organic_share_pct:25, trending:true  },
+      { fruit:'Apple',     health_perception_score:85, organic_share_pct:28, trending:false },
+      { fruit:'Strawberry',health_perception_score:84, organic_share_pct:33, trending:false },
+      { fruit:'Orange',    health_perception_score:80, organic_share_pct:15, trending:false },
+      { fruit:'Grape',     health_perception_score:77, organic_share_pct:20, trending:false },
+      { fruit:'Pear',      health_perception_score:75, organic_share_pct:22, trending:false },
+      { fruit:'Peach',     health_perception_score:73, organic_share_pct:18, trending:false },
+      { fruit:'Banana',    health_perception_score:70, organic_share_pct:12, trending:false },
+    ],
+  },
+  trends: {
+    years: [2019,2020,2021,2022,2023,2024],
+    fruits: {
+      Apple:      { north_america:[5600,5900,6100,5950,5850,5900], europe:[7400,7600,7900,7750,7700,7800] },
+      Banana:     { north_america:[5900,6300,6400,6250,6150,6200], europe:[5800,6000,6200,6100,6050,6100] },
+      Strawberry: { north_america:[3200,3500,3700,3850,4000,4100], europe:[3100,3300,3500,3650,3800,3900] },
+      Blueberry:  { north_america:[1500,1750,1900,2050,2200,2400], europe:[700,820,950,1050,1150,1280] },
+      Orange:     { north_america:[2900,2850,2800,2760,2720,2700], europe:[5600,5500,5400,5350,5250,5200] },
+    },
+  },
+  totalMarket: {
+    north_america: 35.6,
+    europe: 36.8,
+  },
+};
+
+/* Bright fruit-themed palette — vivid, accessible on dark bg */
+const FRUIT_COLORS = {
+  Apple:      '#4ADE80', /* vivid green */
+  Banana:     '#FACC15', /* sunshine yellow */
+  Strawberry: '#F87171', /* berry red */
+  Orange:     '#FB923C', /* orange */
+  Grape:      '#C084FC', /* purple */
+  Watermelon: '#34D399', /* watermelon green */
+  Blueberry:  '#818CF8', /* periwinkle */
+  Peach:      '#FCA5A5', /* peach */
+  Mango:      '#FCD34D', /* mango gold */
+  Pineapple:  '#86EFAC', /* pale green */
+  Pear:       '#A3E635', /* chartreuse */
+  Cherry:     '#FB7185', /* cherry pink */
+  Kiwi:       '#6EE7B7', /* kiwi mint */
+};
+
+/* SECTION: State */
+let state = {
+  region: 'both',         /* 'both' | 'north_america' | 'europe' */
+  searchQuery: '',
+  sortCol: 'annual_sales_usd_millions',
+  sortDir: 'desc',
+  page: 0,
+  highlightedFruit: null,
+};
+
+/* chart instances */
+let charts = {};
+
+/* SECTION: Utility */
+function fmt(n) { return n.toLocaleString('en-US', { maximumFractionDigits:0 }); }
+function fmtB(n) { return (n/1000).toFixed(1)+'B'; }
+function getTheme() { return document.documentElement.getAttribute('data-theme') || 'dark'; }
+function isDark() { return getTheme() === 'dark'; }
+
+function chartColors() {
+  const dark = isDark();
+  return {
+    grid:  dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+    tick:  dark ? '#8E8D87' : '#706F69',
+    bg:    dark ? '#1E1D1A' : '#FFFFFF',
+  };
+}
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); charts[key] = null; }
+}
+
+/* SECTION: Region filter */
+function setRegion(btn) {
+  document.querySelectorAll('[data-region]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.region = btn.dataset.region;
+  state.page = 0;
+  renderAll();
+}
+
+/* SECTION: Build flat table rows from dataset */
+function buildTableRows() {
+  const rows = [];
+  const regions = state.region === 'both' ? ['north_america','europe'] :
+                  state.region === 'north_america' ? ['north_america'] : ['europe'];
+  regions.forEach(reg => {
+    FRUIT_DATA.sales[reg].forEach(s => {
+      const pop  = (FRUIT_DATA.popularity[reg]  || []).find(p => p.fruit === s.fruit) || {};
+      const hlth = (FRUIT_DATA.health[reg]      || []).find(h => h.fruit === s.fruit) || {};
+      rows.push({
+        fruit: s.fruit,
+        region: reg === 'north_america' ? 'North America' : 'Europe',
+        annual_sales_usd_millions: s.annual_sales_usd_millions,
+        market_share_pct: s.market_share_pct,
+        avg_price_per_kg_usd: s.avg_price_per_kg_usd,
+        growth_rate_pct: s.growth_rate_pct,
+        popularity_score: pop.popularity_score || '—',
+        health_perception_score: hlth.health_perception_score || '—',
+        trending: hlth.trending || false,
+      });
+    });
+  });
+  return rows;
+}
+
+/* SECTION: KPI Rendering */
+function renderKPIs() {
+  const regions = state.region === 'both' ? ['north_america','europe'] :
+                  state.region === 'north_america' ? ['north_america'] : ['europe'];
+
+  const allSales = regions.flatMap(r => FRUIT_DATA.sales[r]);
+  const totalSales = allSales.reduce((s,m)=>s+m.annual_sales_usd_millions,0);
+  const totalMarket = regions.reduce((s,r)=>s+FRUIT_DATA.totalMarket[r],0);
+
+  // Fastest growing (max positive growth)
+  const fastest = allSales.reduce((a,b)=>b.growth_rate_pct>a.growth_rate_pct?b:a, allSales[0]);
+  // Only declining: negative growth
+  const declining = allSales.filter(m=>m.growth_rate_pct<0);
+  // Premium: highest $/kg
+  const premium = allSales.reduce((a,b)=>b.avg_price_per_kg_usd>a.avg_price_per_kg_usd?b:a, allSales[0]);
+
+  const kpis = [
+    { label:'Total market size',        value:'$'+fmtB(totalMarket*1000),    change:2.1,  sub: regions.length>1?'NA + Europe combined':regions[0]==='north_america'?'North America':'Europe', color:'purple' },
+    { label:'Fastest growing fruit',    value:fastest.fruit,                  change:fastest.growth_rate_pct, sub:'+'+fastest.growth_rate_pct.toFixed(1)+'% YoY growth', color:'green' },
+    { label:'Fruits in decline',        value:declining.length,              change:null, sub:declining.map(d=>d.fruit).join(', ')||'None', color:'danger' },
+    { label:'Highest price per kg',     value:'$'+premium.avg_price_per_kg_usd.toFixed(2), change:null, sub:premium.fruit+' — premium segment', color:'gold' },
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k=>`
+    <article class="kpi-card ${k.color}" aria-label="${k.label}: ${k.value}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      ${k.change!==null ? `<div class="kpi-change ${k.change>0?'up':k.change<0?'down':'neutral'}">
+        ${k.change>0?'↑':k.change<0?'↓':'→'} ${Math.abs(k.change).toFixed(1)}% YoY
+      </div>` : ''}
+      <div class="kpi-sub">${k.sub}</div>
+    </article>
+  `).join('');
+}
+
+/* SECTION: Trends Line Chart */
+function renderTrendsChart() {
+  destroyChart('trends');
+  const cc = chartColors();
+  const { years, fruits } = FRUIT_DATA.trends;
+
+  const regions = state.region === 'both'          ? ['north_america','europe'] :
+                  state.region === 'north_america' ? ['north_america'] : ['europe'];
+
+  const datasets = [];
+  const legendItems = [];
+
+  Object.entries(fruits).forEach(([fruit, regionData]) => {
+    regions.forEach(reg => {
+      const color = FRUIT_COLORS[fruit] || '#aaa';
+      const isDecline = fruit === 'Orange';
+      const label = fruit + (regions.length > 1 ? (reg === 'north_america' ? ' (NA)' : ' (EU)') : '');
+      datasets.push({
+        label,
+        data: regionData[reg],
+        borderColor: color,
+        backgroundColor: color + '18',
+        borderWidth: 2.5,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 7,
+        pointBackgroundColor: color,
+        borderDash: isDecline ? [5,3] : [],
+        fill: false,
+      });
+      legendItems.push({ label, color, dashed: isDecline });
+    });
+  });
+
+  document.getElementById('trendsLegend').innerHTML = legendItems.map(l=>`
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:${l.dashed?'none':l.color};
+        ${l.dashed?`border:2px dashed ${l.color};`:''} width:14px; height:8px; border-radius:2px;"></div>
+      ${l.label}
+    </div>`).join('');
+
+  charts.trends = new Chart(document.getElementById('trendsChart'), {
+    type:'line',
+    data:{ labels:years, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:500 },
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx=>`${ctx.dataset.label}: $${fmt(ctx.parsed.y)}M` }},
+      },
+      scales:{
+        x:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11} }, title:{ display:true, text:'Year', color:cc.tick, font:{size:11} } },
+        y:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11}, callback:v=>'$'+fmt(v)+'M' },
+            title:{ display:true, text:'Annual sales (USD millions)', color:cc.tick, font:{size:11} } },
+      },
+    },
+  });
+}
+
+/* SECTION: Popularity Grouped Bar */
+function renderPopularityChart() {
+  destroyChart('popularity');
+  const cc = chartColors();
+
+  // Fruits present in both regions for comparison
+  const shared = ['Apple','Banana','Strawberry','Grape','Orange','Peach','Watermelon'];
+  const getScore = (reg,fruit) => (FRUIT_DATA.popularity[reg].find(p=>p.fruit===fruit)||{}).popularity_score||0;
+
+  const naScores = shared.map(f=>getScore('north_america',f));
+  const euScores = shared.map(f=>getScore('europe',f));
+
+  charts.popularity = new Chart(document.getElementById('popularityChart'), {
+    type:'bar',
+    data:{
+      labels: shared,
+      datasets:[
+        { label:'North America', data:naScores, backgroundColor:'#60A5FA', borderColor:'#3B82F6', borderWidth:1.5, borderRadius:4 },
+        { label:'Europe',        data:euScores, backgroundColor:'#F472B6', borderColor:'#EC4899', borderWidth:1.5, borderRadius:4 },
+      ],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:500 },
+      plugins:{
+        legend:{ display:true, labels:{ color:cc.tick, boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}/100` }},
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color:cc.tick, font:{size:10}, maxRotation:30 } },
+        y:{ min:50, max:100, grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11} },
+            title:{ display:true, text:'Popularity score', color:cc.tick, font:{size:11} } },
+      },
+    },
+  });
+}
+
+/* SECTION: Price vs Growth Scatter */
+function renderScatterChart() {
+  destroyChart('scatter');
+  const cc = chartColors();
+
+  const regions = state.region === 'both'          ? ['north_america','europe'] :
+                  state.region === 'north_america' ? ['north_america'] : ['europe'];
+
+  const datasets = regions.map(reg => ({
+    label: reg==='north_america'?'North America':'Europe',
+    data: FRUIT_DATA.sales[reg].map(s=>({
+      x: s.avg_price_per_kg_usd,
+      y: s.growth_rate_pct,
+      r: Math.max(4, s.market_share_pct * 2.2),
+      label: s.fruit,
+    })),
+    backgroundColor: (reg==='north_america' ? '#60A5FA' : '#F472B6') + 'BB',
+    borderColor: reg==='north_america' ? '#3B82F6' : '#EC4899',
+    borderWidth: 1.5,
+  }));
+
+  charts.scatter = new Chart(document.getElementById('scatterChart'), {
+    type:'bubble',
+    data:{ datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:500 },
+      plugins:{
+        legend:{ display:true, labels:{ color:cc.tick, boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label: ctx=> `${ctx.raw.label}: $${ctx.raw.x}/kg, ${ctx.raw.y>0?'+':''}${ctx.raw.y}% growth` }},
+      },
+      scales:{
+        x:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11}, callback:v=>'$'+v.toFixed(1) },
+            title:{ display:true, text:'Avg price per kg (USD)', color:cc.tick, font:{size:11} } },
+        y:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11}, callback:v=>v+'%' },
+            title:{ display:true, text:'YoY growth rate (%)', color:cc.tick, font:{size:11} } },
+      },
+      onClick:(e,els)=>{
+        if(els.length>0){
+          const d = els[0];
+          const fruit = charts.scatter.data.datasets[d.datasetIndex].data[d.index].label;
+          state.highlightedFruit = fruit;
+          state.page=0;
+          renderTable();
+          document.getElementById('table-section').scrollIntoView({behavior:'smooth',block:'start'});
+        }
+      },
+    },
+  });
+}
+
+/* SECTION: Donut Charts (NA & EU) */
+function renderDonutCharts() {
+  ['north_america','europe'].forEach(reg => {
+    const key = reg==='north_america'?'donutNA':'donutEU';
+    destroyChart(key);
+    const cc = chartColors();
+    const data = FRUIT_DATA.sales[reg];
+    const labels = data.map(d=>d.fruit);
+    const vals   = data.map(d=>d.annual_sales_usd_millions);
+    const colors = labels.map(f=>FRUIT_COLORS[f]||'#aaa');
+
+    const legendEl = document.getElementById(key==='donutNA'?'donutNALegend':'donutEULegend');
+    legendEl.innerHTML = labels.map((l,i)=>`
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:${colors[i]};"></div>
+        ${l}
+      </div>`).join('');
+
+    const total = vals.reduce((a,b)=>a+b,0);
+    charts[key] = new Chart(document.getElementById(key+'Chart'), {
+      type:'doughnut',
+      data:{ labels, datasets:[{
+        data:vals,
+        backgroundColor:colors,
+        borderColor: isDark()?'#1E1D1A':'#FFFFFF',
+        borderWidth:3,
+        hoverOffset:8,
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        animation:{ duration:500 },
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{ label:ctx=>`${ctx.label}: $${fmt(ctx.parsed)}M (${((ctx.parsed/total)*100).toFixed(1)}%)` }},
+        },
+        onClick:(e,els)=>{
+          if(els.length>0){
+            state.highlightedFruit = labels[els[0].index];
+            state.page=0;
+            renderTable();
+            document.getElementById('table-section').scrollIntoView({behavior:'smooth',block:'start'});
+          }
+        },
+      },
+    });
+  });
+}
+
+/* SECTION: Seasonal Radar */
+function renderSeasonalChart() {
+  destroyChart('seasonal');
+  const cc = chartColors();
+
+  const reg = state.region==='europe' ? 'europe' : 'north_america';
+  const data = FRUIT_DATA.seasonal[reg];
+
+  // Pick the most interesting fruits (most variance)
+  const fruitsToShow = ['Watermelon','Peach','Strawberry','Orange','Banana','Blueberry'];
+  const filtered = data.filter(d=>fruitsToShow.includes(d.fruit));
+
+  const datasets = filtered.map(d=>{
+    const color = FRUIT_COLORS[d.fruit]||'#aaa';
+    return {
+      label: d.fruit,
+      data: [d.Q1,d.Q2,d.Q3,d.Q4],
+      borderColor: color,
+      backgroundColor: color+'28',
+      borderWidth:2,
+      pointBackgroundColor: color,
+      pointRadius:4,
+      pointHoverRadius:7,
+    };
+  });
+
+  charts.seasonal = new Chart(document.getElementById('seasonalChart'), {
+    type:'radar',
+    data:{ labels:['Q1 (Jan–Mar)','Q2 (Apr–Jun)','Q3 (Jul–Sep)','Q4 (Oct–Dec)'], datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:500 },
+      plugins:{
+        legend:{ display:true, labels:{ color:cc.tick, boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label:ctx=>`${ctx.dataset.label} ${ctx.label}: index ${ctx.parsed.r}` }},
+      },
+      scales:{
+        r:{
+          min:0, max:260,
+          ticks:{ color:cc.tick, font:{size:10}, stepSize:50, backdropColor:'transparent' },
+          grid:{ color:cc.grid },
+          angleLines:{ color:cc.grid },
+          pointLabels:{ color:cc.tick, font:{size:11} },
+        },
+      },
+    },
+  });
+
+  // Seasonal feed
+  const reg2 = state.region==='europe'?'europe':'north_america';
+  const allFruits = FRUIT_DATA.seasonal[reg2];
+  const extremes = [];
+  allFruits.forEach(d=>{
+    ['Q1','Q2','Q3','Q4'].forEach(q=>{
+      if(d[q]>=180) extremes.push({ fruit:d.fruit, quarter:q, index:d[q] });
+    });
+  });
+  extremes.sort((a,b)=>b.index-a.index);
+
+  document.getElementById('seasonalFeed').innerHTML = extremes.slice(0,8).map(e=>{
+    const sev = e.index>=200?'critical':'warning';
+    const qLabel = {Q1:'Jan–Mar',Q2:'Apr–Jun',Q3:'Jul–Sep',Q4:'Oct–Dec'}[e.quarter];
+    return `<div class="feed-item">
+      <div class="feed-dot ${sev}"></div>
+      <div class="feed-body">
+        <div class="feed-msg"><strong>${e.fruit}</strong> peaks at index <strong>${e.index}</strong> in ${qLabel} — ${e.index>=200?'extreme':'strong'} seasonality</div>
+        <div class="feed-time">${e.index>=200?'Buy/sell timing critical':'Plan inventory ahead'}</div>
+      </div>
+      <div class="feed-badge ${sev}">${e.index>=200?'extreme':'seasonal'}</div>
+    </div>`;
+  }).join('');
+}
+
+/* SECTION: Sentiment Scatter */
+function renderSentimentChart() {
+  destroyChart('sentiment');
+  const cc = chartColors();
+
+  const regions = state.region==='both'          ? ['north_america','europe'] :
+                  state.region==='north_america' ? ['north_america'] : ['europe'];
+
+  const datasets = regions.map(reg=>({
+    label: reg==='north_america'?'North America':'Europe',
+    data: FRUIT_DATA.health[reg].map(h=>({
+      x: h.organic_share_pct,
+      y: h.health_perception_score,
+      r: h.trending ? 10 : 6,
+      label: h.fruit,
+      trending: h.trending,
+    })),
+    backgroundColor: (reg==='north_america'?'#60A5FA':'#F472B6')+'CC',
+    borderColor: reg==='north_america'?'#3B82F6':'#EC4899',
+    borderWidth:1.5,
+  }));
+
+  charts.sentiment = new Chart(document.getElementById('sentimentChart'), {
+    type:'bubble',
+    data:{ datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:500 },
+      plugins:{
+        legend:{ display:true, labels:{ color:cc.tick, boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label:ctx=>`${ctx.raw.label}: health ${ctx.raw.y}, organic ${ctx.raw.x}%${ctx.raw.trending?' ★ trending':''}` }},
+      },
+      scales:{
+        x:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11}, callback:v=>v+'%' },
+            title:{ display:true, text:'Organic share (%)', color:cc.tick, font:{size:11} } },
+        y:{ min:60, max:100, grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11} },
+            title:{ display:true, text:'Health perception score', color:cc.tick, font:{size:11} } },
+      },
+    },
+  });
+}
+
+/* SECTION: Consumption Chart */
+function renderConsumptionChart() {
+  destroyChart('consumption');
+  const cc = chartColors();
+
+  const regions = state.region==='both'          ? ['north_america','europe'] :
+                  state.region==='north_america' ? ['north_america'] : ['europe'];
+
+  // Union of all fruits present
+  const allFruits = [...new Set(regions.flatMap(r=>FRUIT_DATA.consumption[r].map(d=>d.fruit)))];
+  allFruits.sort((a,b)=>{
+    const aMax = Math.max(...regions.map(r=>(FRUIT_DATA.consumption[r].find(d=>d.fruit===a)||{}).kg_per_capita||0));
+    const bMax = Math.max(...regions.map(r=>(FRUIT_DATA.consumption[r].find(d=>d.fruit===b)||{}).kg_per_capita||0));
+    return bMax-aMax;
+  });
+
+  const datasets = regions.map(reg=>({
+    label: reg==='north_america'?'North America':'Europe',
+    data: allFruits.map(f=>(FRUIT_DATA.consumption[reg].find(d=>d.fruit===f)||{}).kg_per_capita||0),
+    backgroundColor: (reg==='north_america'?'#60A5FA':'#F472B6')+'CC',
+    borderColor: reg==='north_america'?'#3B82F6':'#EC4899',
+    borderWidth:1.5,
+    borderRadius:4,
+  }));
+
+  charts.consumption = new Chart(document.getElementById('consumptionChart'), {
+    type:'bar',
+    data:{ labels:allFruits, datasets },
+    options:{
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:500 },
+      plugins:{
+        legend:{ display:true, labels:{ color:cc.tick, boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.x} kg/person/yr` }},
+      },
+      scales:{
+        x:{ grid:{ color:cc.grid }, ticks:{ color:cc.tick, font:{size:11}, callback:v=>v+' kg' },
+            title:{ display:true, text:'kg per capita per year', color:cc.tick, font:{size:11} } },
+        y:{ grid:{ display:false }, ticks:{ color:cc.tick, font:{size:11} } },
+      },
+    },
+  });
+}
+
+/* SECTION: Table */
+let currentPage = 0;
+const PAGE_SIZE = 10;
+
+function getTableData() {
+  let rows = buildTableRows();
+  const q = (document.getElementById('tableSearch')||{}).value||'';
+  if(q) rows = rows.filter(r=>r.fruit.toLowerCase().includes(q.toLowerCase())||r.region.toLowerCase().includes(q.toLowerCase()));
+  rows.sort((a,b)=>{
+    let av=a[state.sortCol], bv=b[state.sortCol];
+    if(typeof av==='string') av=av.toLowerCase();
+    if(typeof bv==='string') bv=bv.toLowerCase();
+    if(av<bv) return state.sortDir==='asc'?-1:1;
+    if(av>bv) return state.sortDir==='asc'?1:-1;
+    return 0;
+  });
+  return rows;
+}
+
+function renderTable() {
+  const rows = getTableData();
+  const start = state.page*PAGE_SIZE;
+  const page  = rows.slice(start, start+PAGE_SIZE);
+  const tbody = document.getElementById('tableBody');
+  if(!tbody) return;
+
+  if(page.length===0){
+    tbody.innerHTML='<tr><td colspan="8" class="no-results">No fruits match your filters.</td></tr>';
+  } else {
+    tbody.innerHTML = page.map(r=>{
+      const isHL = state.highlightedFruit && r.fruit===state.highlightedFruit;
+      const growthClass = r.growth_rate_pct>3?'tag-green':r.growth_rate_pct<0?'tag-danger':'tag-gold';
+      const growthLabel = r.growth_rate_pct>0?'+'+r.growth_rate_pct.toFixed(1)+'%':r.growth_rate_pct.toFixed(1)+'%';
+      const dot = FRUIT_COLORS[r.fruit]||'#aaa';
+      return `<tr class="${isHL?'highlighted':''}" aria-label="${r.fruit}, ${r.region}">
+        <td><span style="display:inline-flex;align-items:center;gap:6px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0;"></span>
+          <strong>${r.fruit}</strong>${r.trending?'<span style="color:#FACC15;margin-left:4px;font-size:10px;">★</span>':''}
+        </span></td>
+        <td>${r.region}</td>
+        <td>$${fmt(r.annual_sales_usd_millions)}M</td>
+        <td>${r.market_share_pct.toFixed(1)}%</td>
+        <td>$${r.avg_price_per_kg_usd.toFixed(2)}</td>
+        <td><span class="tag ${growthClass}">${growthLabel}</span></td>
+        <td>${typeof r.popularity_score==='number'?r.popularity_score+'/100':'—'}</td>
+        <td>${typeof r.health_perception_score==='number'?r.health_perception_score+'/100':'—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('tableInfo').textContent = rows.length+' rows';
+  document.getElementById('pagInfo').textContent = rows.length===0?'No results':
+    `Showing ${start+1}–${Math.min(start+PAGE_SIZE,rows.length)} of ${rows.length}`;
+  document.getElementById('prevBtn').disabled = state.page===0;
+  document.getElementById('nextBtn').disabled = start+PAGE_SIZE>=rows.length;
+
+  ['fruit','region','annual_sales_usd_millions','market_share_pct','avg_price_per_kg_usd','growth_rate_pct','popularity_score','health_perception_score'].forEach(col=>{
+    const el = document.getElementById('sort-'+col);
+    if(el) el.textContent = state.sortCol===col?(state.sortDir==='asc'?'↑':'↓'):'↕';
+  });
+}
+
+function sortTable(col) {
+  if(state.sortCol===col) state.sortDir=state.sortDir==='asc'?'desc':'asc';
+  else { state.sortCol=col; state.sortDir='desc'; }
+  state.page=0;
+  renderTable();
+}
+
+function changePage(dir) {
+  const rows = getTableData();
+  const maxPage = Math.ceil(rows.length/PAGE_SIZE)-1;
+  state.page = Math.max(0,Math.min(state.page+dir,maxPage));
+  renderTable();
+}
+
+/* SECTION: Render All */
+function renderAll() {
+  renderKPIs();
+  renderTrendsChart();
+  renderPopularityChart();
+  renderScatterChart();
+  renderDonutCharts();
+  renderSeasonalChart();
+  renderSentimentChart();
+  renderConsumptionChart();
+  renderTable();
+}
+
+/* SECTION: Update chart colors on theme change */
+function updateChartColors() {
+  setTimeout(renderAll, 50);
+}
+
+/* SECTION: Theme */
+function toggleTheme() {
+  const current = getTheme();
+  const next = current==='dark'?'light':'dark';
+  localStorage.setItem('theme', next);
+  applyTheme(next);
+}
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeIcon').textContent = theme==='dark'?'☀️':'🌙';
+  if(chartsInitialized) updateChartColors();
+}
+
+/* SECTION: Tab switching */
+function switchTab(tab) {
+  const isDemo = tab==='demo';
+  document.getElementById('tab-start').classList.toggle('active',!isDemo);
+  document.getElementById('tab-start').setAttribute('aria-selected',!isDemo);
+  document.getElementById('tab-demo').classList.toggle('active',isDemo);
+  document.getElementById('tab-demo').setAttribute('aria-selected',isDemo);
+  document.getElementById('panel-start').classList.toggle('active',!isDemo);
+  document.getElementById('panel-demo').classList.toggle('active',isDemo);
+  document.getElementById('starterNav').style.display  = isDemo?'none':'block';
+  document.getElementById('demoNav').style.display     = isDemo?'block':'none';
+  document.getElementById('sidebarFilters').style.display = isDemo?'block':'none';
+  document.getElementById('filtersLabel').style.display   = isDemo?'block':'none';
+  document.getElementById('timeToggleGroup').style.display = 'none'; /* fruit demo uses own region toggle */
+  document.getElementById('headerTitle').textContent = isDemo?'Global Fruit Market Explorer':'Building Dashboards with AI';
+  document.getElementById('headerMeta').innerHTML    = isDemo
+    ? 'North America &amp; Europe · 2024 market data · Updated '+DATA_CONFIG.updateTimestamp
+    : 'Start here — your guide to AI-powered data storytelling';
+  document.getElementById('mainContent').scrollTop = 0;
+  if(isDemo && !chartsInitialized){ chartsInitialized=true; renderAll(); }
+}
+
+/* SECTION: Navigation helpers */
+function scrollToInTab(id) {
+  const el = document.getElementById(id);
+  if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  const activeNav = document.activeElement?.closest('nav');
+  if(activeNav){
+    activeNav.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    document.activeElement.classList.add('active');
+  }
+}
+
+/* SECTION: Sidebar filter (fruit filter) */
+function applyFilters() {
+  /* fruit demo uses region toggle, not sidebar dropdowns — sidebar retained for future use */
+}
+function updateRangeLabel(input){
+  document.getElementById('revenueRangeVal').textContent = '$'+parseFloat(input.value).toFixed(1)+'B';
+}
+
+/* SECTION: Modal Prompts */
+const PROMPTS = {
+  kpiPrompt: {
+    title: 'Prompt: KPI summary cards',
+    body:  'These four market-level KPIs were built with a single prompt:',
+    prompt: `I have a fruit market dataset for North America and Europe (JSON format).
+Build 4 KPI cards showing:
+1. Total combined market size in $B
+2. Fastest-growing fruit (with % YoY growth)
+3. Number of fruits in decline + which ones
+4. Highest price-per-kg fruit (premium segment signal)
+
+Each card needs:
+- A large, formatted value (use B for billions, keep 1 decimal)
+- A descriptive label
+- A trend arrow (↑/↓) with % change where applicable
+- A secondary context line
+- A colored top border to distinguish card types
+
+The cards should update dynamically when a region filter changes.`,
+    tip: 'Asking for "a colored top border to distinguish card types" rather than specifying exact colors lets the AI choose a consistent scheme.',
+  },
+  trendsPrompt: {
+    title: 'Prompt: Sales trends line chart',
+    body:  'The 6-year trend chart was built by describing the story first:',
+    prompt: `Add a line chart showing annual sales trends (2019–2024) for the top 5 fruits:
+Apple, Banana, Strawberry, Blueberry, and Orange.
+
+Key requirements:
+- Show both regions (North America and Europe) as separate lines
+- Use a distinct fruit-themed color per fruit (e.g. green for Apple, yellow for Banana)
+- Orange is in decline in both regions — show it as a dashed line to signal trouble
+- Blueberry is the fastest grower — make sure that's visible in the data range
+- Region toggle (North America / Europe / Both) filters which lines show
+- Tooltip shows exact value in $M on hover
+- Y-axis labeled "Annual sales (USD millions)"
+
+Don't show a legend inside the chart canvas — render a custom HTML legend above it.`,
+    tip: 'Explicitly calling out anomalies ("Orange is in decline — use dashed lines") tells the AI which data stories to make visually obvious.',
+  },
+  regionalPrompt: {
+    title: 'Prompt: Regional comparison charts',
+    body:  'The NA vs Europe section was one prompt asking for three chart types:',
+    prompt: `Create a regional comparison section with three chart types:
+
+1. GROUPED BAR CHART — Popularity scores for shared fruits (Apple, Banana, Strawberry,
+   Grape, Orange, Peach, Watermelon). Two bars per fruit: North America in blue,
+   Europe in pink. Y axis starts at 50 to show relative differences.
+
+2. BUBBLE CHART — X axis = avg price per kg, Y axis = YoY growth rate,
+   bubble radius = market share %. Show both regions with different colors.
+   Clicking a bubble highlights that fruit in the data table below.
+
+3. TWO SIDE-BY-SIDE DONUT CHARTS — one for NA market share, one for EU market share.
+   Use fruit-themed colors (green for Apple, yellow for Banana, red for Strawberry, etc.)
+   Clicking a donut slice also highlights the table.
+
+All three charts should respect the region toggle at the top of the page.`,
+    tip: 'Specifying chart-to-table interaction ("clicking a bubble highlights that fruit in the data table") in the same prompt as the chart creates the coupling automatically.',
+  },
+  seasonalPrompt: {
+    title: 'Prompt: Seasonal patterns radar chart',
+    body:  'The radar chart was the most interesting prompt — framing the ask around the story:',
+    prompt: `I want to show how seasonal each fruit is across the four quarters.
+I have a "seasonal sales index" where 100 = average monthly demand.
+Values above 100 = above-average, below 100 = below-average.
+
+Build a RADAR / SPIDER CHART with four axes (Q1, Q2, Q3, Q4) showing
+6 fruits with interesting seasonal patterns: Watermelon, Peach, Strawberry,
+Orange, Banana, and Blueberry.
+
+The most extreme fruits (index ≥ 200 in any quarter) should visually stand out.
+
+Also add a scrollable "Seasonal Insights Feed" next to the chart listing:
+- Every fruit-quarter combination where the index exceeds 180
+- Sorted by index descending (most extreme first)
+- Color-coded: ≥200 = critical (red), 180–199 = warning (amber)
+- A brief label explaining what the extreme means for inventory planning
+
+The chart should switch between North America and Europe data when the region toggle changes.`,
+    tip: 'The best chart prompts describe the data story ("Watermelon is extreme in Q3") and the chart follows — not the other way around.',
+  },
+  sentimentPrompt: {
+    title: 'Prompt: Health & sentiment charts',
+    body:  'Two charts from one prompt — by specifying both in detail:',
+    prompt: `Add a health & sentiment section with two charts:
+
+LEFT — BUBBLE SCATTER: X axis = organic share (%), Y axis = health perception score (0–100).
+- Each bubble is a fruit, sized to indicate whether it's trending (large) or not (small)
+- Show both regions; color North America blue and Europe pink
+- Tooltips show: "[fruit]: health [score], organic [%]% + ★ trending" for trending fruits
+- Add a note above: "Large bubbles (★) = currently trending fruits"
+
+RIGHT — HORIZONTAL BAR: Per-capita consumption in kg/person/year.
+- Sort fruits by highest consumption descending
+- Show both regions side by side where data exists
+- This reveals Apple's dominance in Europe (16.8kg/person) vs North America (10.1kg)
+- Label the X axis "kg per capita per year"
+
+Both charts update when the region toggle changes.`,
+    tip: 'Include the key insight in the prompt ("Apple\'s dominance in Europe at 16.8kg") so the AI understands what story the chart is meant to tell.',
+  },
+  tablePrompt: {
+    title: 'Prompt: Sortable data table',
+    body:  'The data table prompt specified every interactive behavior:',
+    prompt: `Add a data table combining all fruit data across regions into flat rows.
+Each row = one fruit × one region combination.
+
+Columns: Fruit name (with a small colored dot matching the chart colors), Region,
+Annual Sales ($M), Market Share %, Avg Price/kg, Growth % (as a colored badge:
+green for >3%, gold for 0–3%, red for negative), Popularity Score, Health Score.
+
+Add a ★ next to fruit names that are currently trending.
+
+Features:
+- Sort by any column (click header, toggle asc/desc, show ↑/↓ icon)
+- Search/filter that matches fruit name and region
+- Pagination: 10 rows per page with "Showing X–Y of Z" indicator
+- When a chart element is clicked (donut slice or bubble), rows matching that fruit
+  get a highlighted background and the table scrolls to them
+- Rows should filter when the region toggle at the top changes
+
+Show the table filtered to the active region.`,
+    tip: 'Describing row highlighting as "the table scrolls to them" is the key phrase — it makes the AI wire up scrollIntoView automatically.',
+  },
+  step1Prompt: {
+    title: 'Step 1: Define your story',
+    body:  'Start every dashboard project with this framing prompt:',
+    prompt: `I want to build a data storytelling dashboard. Help me plan it.
+
+My topic: [your topic — e.g. "global fruit market trends"]
+My audience: [who reads it — e.g. "procurement buyers at a supermarket chain"]
+The decision this supports: [e.g. "which fruits to increase/decrease stock orders for"]
+Data I have: [describe it — e.g. "JSON with sales, popularity, prices, seasonal indices"]
+
+Please suggest:
+1. The 4 most important KPIs for the top row
+2. Best primary chart type for the main trend (and why)
+3. A comparison chart (e.g. region vs region, category vs category)
+4. What seasonal or time-based view would be most useful
+5. The single most surprising insight the data might reveal`,
+    tip: 'Getting the story right before touching code saves hours. This prompt replaces a kickoff meeting.',
+  },
+  step2Prompt: {
+    title: 'Step 2: Describe your data',
+    body:  'Once you have a plan, bring in your data:',
+    prompt: `Here's a sample of my data (first 5 rows / one section):
+
+[paste your JSON or CSV header + 5 rows here]
+
+Column / field descriptions:
+- [field name]: [what it means, units, any special values to note]
+- [field name]: [what it means, units, any special values to note]
+
+Please:
+1. Parse the structure and list all columns + inferred data types
+2. Note any anomalies — declining values, outliers, missing data
+3. Build the first component using this real data: a KPI summary row
+   with the 4 metrics we agreed on in step 1
+4. Define all data as a JavaScript const so it loads without fetch() calls`,
+    tip: 'Pasting real data (even just one section of a nested JSON) gives the AI enough to infer your schema, units, and value ranges — no need to explain everything manually.',
+  },
+  step3Prompt: {
+    title: 'Step 3: Iterate & refine',
+    body:  'Build features one at a time — each prompt adds one thing:',
+    prompt: `The dashboard is looking good. Now let's add interactivity one step at a time.
+Confirm each step before moving to the next.
+
+Step A: Add a region toggle (North America / Europe / Both) that filters all charts
+        and the table simultaneously. The toggle should sit just below the teaching banner.
+
+Step B: Make the donut chart and bubble chart interactive — clicking a slice or bubble
+        should highlight matching rows in the data table and scroll to them.
+
+Step C: Add dark mode as the default. Persist the choice via localStorage.
+        All chart colors should be bright and vivid against the dark background.
+
+Step D: Add a seasonal radar chart showing quarterly demand patterns.
+        Include a "Seasonal Insights Feed" next to it listing extreme peaks.
+
+Start with Step A and show me the result.`,
+    tip: '"Confirm each step before moving to the next" prevents the AI from getting ahead of itself. Use it any time you\'re adding multiple interactive features at once.',
+  },
+};
+
+function openModal(key) {
+  const p = PROMPTS[key];
+  if(!p) return;
+  document.getElementById('modalTitle').textContent = p.title;
+  document.getElementById('modalBody').innerHTML = `
+    <p style="margin-bottom:12px;">${p.body}</p>
+    <div class="prompt-block">${p.prompt}</div>
+    ${p.tip?`<p style="margin-top:12px;padding:12px;background:var(--gold-light);border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);"><strong style="color:var(--gold);">💡 Why this works:</strong> ${p.tip}</p>`:''}
+    <button class="copy-btn" onclick="copyPrompt('${key}')" aria-label="Copy prompt to clipboard">📋 Copy this prompt</button>
+  `;
+  document.getElementById('modalOverlay').classList.add('open');
+  document.querySelector('.modal-close').focus();
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function closeModalOnOverlay(e) { if(e.target===document.getElementById('modalOverlay')) closeModal(); }
+
+function copyPrompt(key) {
+  const p = PROMPTS[key];
+  if(!p) return;
+  navigator.clipboard.writeText(p.prompt).then(()=>{
+    const btn = document.querySelector('.copy-btn');
+    if(btn){ btn.textContent='✓ Copied!'; setTimeout(()=>{ btn.innerHTML='📋 Copy this prompt'; },2000); }
+  });
+}
+
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+/* SECTION: Initialization */
+let chartsInitialized = false;
+
+function init() {
+  /* Default to dark mode */
+  const saved = localStorage.getItem('theme');
+  const theme = saved || 'dark';
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeIcon').textContent = theme==='dark'?'☀️':'🌙';
+  if(!saved) localStorage.setItem('theme','dark');
+}
+
+init();
+</script>
+</body>
+</html>
