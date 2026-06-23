@@ -2806,12 +2806,12 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 let chartsInitialized = false;
 
 function init() {
-  /* Default to dark mode */
+  /* Default to light mode */
   const saved = localStorage.getItem('theme');
-  const theme = saved || 'dark';
+  const theme = saved || 'light';
   document.documentElement.setAttribute('data-theme', theme);
   document.getElementById('themeIcon').textContent = theme==='dark'?'☀️':'🌙';
-  if(!saved) localStorage.setItem('theme','dark');
+  if(!saved) localStorage.setItem('theme','light');
 }
 
 init();
